@@ -1,4 +1,5 @@
-import discord
+import disnake
+from disnake.ext import commands
 import asyncio
 import os
 import logging
@@ -8,23 +9,22 @@ logger = logging.getLogger(__name__)
 
 TOKEN = os.getenv("DISCORD_TOKEN")
 VOICE_CHANNEL_ID = 558111011924869120
-AUDIO_FILE = os.getenv("AUDIO_FILE", "audio.mp3")
 
-bot = discord.Bot()
+bot = commands.InteractionBot()
 
 
 @bot.slash_command(name="play", description="Reproduce un audio en el canal de voz")
-async def play_command(ctx: discord.ApplicationContext, archivo: str):
+async def play_command(inter: disnake.ApplicationCommandInteraction, archivo: str):
     channel = bot.get_channel(VOICE_CHANNEL_ID)
-    if not isinstance(channel, discord.VoiceChannel):
-        await ctx.respond("Canal de voz no encontrado.")
+    if not isinstance(channel, disnake.VoiceChannel):
+        await inter.response.send_message("Canal de voz no encontrado.")
         return
 
     if not os.path.isfile(archivo):
-        await ctx.respond(f"Archivo `{archivo}` no encontrado.")
+        await inter.response.send_message(f"Archivo `{archivo}` no encontrado.")
         return
 
-    await ctx.respond(f"Reproduciendo `{archivo}` en **{channel.name}**...")
+    await inter.response.send_message(f"Reproduciendo `{archivo}` en **{channel.name}**...")
     voice_client = await channel.connect()
 
     try:
@@ -37,7 +37,7 @@ async def play_command(ctx: discord.ApplicationContext, archivo: str):
             else:
                 loop.call_soon_threadsafe(future.set_result, None)
 
-        voice_client.play(discord.FFmpegPCMAudio(archivo, options="-vn"), after=after)
+        voice_client.play(disnake.FFmpegPCMAudio(archivo, options="-vn"), after=after)
         await future
 
     except Exception as e:
@@ -51,11 +51,9 @@ async def play_command(ctx: discord.ApplicationContext, archivo: str):
 @bot.event
 async def on_ready():
     logger.info(f"Bot online: {bot.user}")
-    # Limpiar conexiones de voz colgadas de sesiones anteriores
     for guild in bot.guilds:
         if guild.voice_client:
             await guild.voice_client.disconnect(force=True)
-            logger.info(f"Desconectado voice client colgado en: {guild.name}")
 
 
 bot.run(TOKEN)
