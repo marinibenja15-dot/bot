@@ -56,6 +56,11 @@ async def play_audio_in_channel(response_ctx=None):
     voice_client = guild.voice_client
 
     try:
+        # Clean up any stale/disconnected voice client from previous attempts
+        if voice_client is not None and not voice_client.is_connected():
+            await voice_client.disconnect(force=True)
+            voice_client = None
+
         if voice_client is None:
             voice_client = await channel.connect()
             logger.info(f"Conectado al canal: {channel.name}")
