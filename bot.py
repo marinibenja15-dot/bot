@@ -24,10 +24,21 @@ intents = discord.Intents.default()
 intents.voice_states = True
 
 bot = commands.Bot(command_prefix="!", intents=intents)
+voice_lock = asyncio.Lock()
 
 
 async def play_audio_in_channel(interaction: discord.Interaction = None):
     """Join the voice channel, play the audio file, then disconnect."""
+    if voice_lock.locked():
+        if interaction:
+            await interaction.followup.send("Ya hay una reproducción en curso, esperá un momento.")
+        return
+
+    async with voice_lock:
+        await _do_play(interaction)
+
+
+async def _do_play(interaction: discord.Interaction = None):
     async def reply(msg):
         if interaction:
             await interaction.followup.send(msg)
