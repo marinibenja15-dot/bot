@@ -22,7 +22,7 @@ async def play_command(ctx: discord.ApplicationContext):
         await ctx.respond("Canal de voz no encontrado.")
         return
 
-    voice_client = await channel.connect()
+    voice_client = await channel.connect(self_deaf=True)
 
     try:
         loop = asyncio.get_running_loop()
