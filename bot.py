@@ -26,14 +26,11 @@ intents.voice_states = True
 bot = commands.Bot(command_prefix="!", intents=intents)
 
 
-async def play_audio_in_channel(response_ctx=None):
-    """Join the voice channel, play the audio file, then disconnect.
-
-    If response_ctx is provided (a discord.abc.Messageable), sends status messages there.
-    """
+async def play_audio_in_channel(interaction: discord.Interaction = None):
+    """Join the voice channel, play the audio file, then disconnect."""
     async def reply(msg):
-        if response_ctx:
-            await response_ctx.send(msg)
+        if interaction:
+            await interaction.followup.send(msg)
         else:
             logger.info(msg)
 
@@ -80,8 +77,13 @@ async def play_audio_in_channel(response_ctx=None):
             else:
                 loop.call_soon_threadsafe(future.set_result, None)
 
-        audio_source = discord.FFmpegPCMAudio(AUDIO_FILE)
+        ffmpeg_opts = {"options": "-vn"}
+        audio_source = discord.FFmpegPCMAudio(AUDIO_FILE, **ffmpeg_opts)
         voice_client.play(audio_source, after=after_play)
+
+        if not voice_client.is_playing():
+            raise RuntimeError("FFmpeg no pudo iniciar la reproducción.")
+
         await reply(f"Reproduciendo `{AUDIO_FILE}` en **{channel.name}**...")
         logger.info(f"Reproduciendo '{AUDIO_FILE}'...")
 
@@ -102,7 +104,7 @@ async def play_audio_in_channel(response_ctx=None):
 @tasks.loop(minutes=INTERVAL_MINUTES)
 async def scheduled_play():
     logger.info(f"Tarea programada ejecutándose (cada {INTERVAL_MINUTES} min).")
-    await play_audio_in_channel()
+    await play_audio_in_channel(interaction=None)
 
 
 @scheduled_play.before_loop
@@ -115,7 +117,7 @@ async def before_scheduled_play():
 @bot.tree.command(name="play", description="Reproduce el audio en el canal de voz ahora")
 async def play_slash(interaction: discord.Interaction):
     await interaction.response.defer()
-    await play_audio_in_channel(response_ctx=interaction.channel)
+    await play_audio_in_channel(interaction=interaction)
 
 
 # --- on_ready ---
