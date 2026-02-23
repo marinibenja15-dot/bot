@@ -24,8 +24,8 @@ async def play_command(ctx: discord.ApplicationContext, archivo: str):
         await ctx.respond(f"Archivo `{archivo}` no encontrado.")
         return
 
-    voice_client = await channel.connect()
     await ctx.respond(f"Reproduciendo `{archivo}` en **{channel.name}**...")
+    voice_client = await channel.connect()
 
     try:
         loop = asyncio.get_running_loop()
