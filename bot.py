@@ -22,7 +22,6 @@ if not TOKEN:
 # --- Bot setup ---
 intents = discord.Intents.default()
 intents.voice_states = True
-intents.message_content = True  # Required for prefix commands
 
 bot = commands.Bot(command_prefix="!", intents=intents)
 
@@ -104,13 +103,6 @@ async def scheduled_play():
 @scheduled_play.before_loop
 async def before_scheduled_play():
     await bot.wait_until_ready()
-
-
-# --- Prefix command: !play ---
-@bot.command(name="play")
-async def play_command(ctx: commands.Context):
-    """Reproduce el audio manualmente en el canal de voz configurado."""
-    await play_audio_in_channel(response_ctx=ctx)
 
 
 # --- Slash command: /play ---
