@@ -50,6 +50,11 @@ async def play_command(ctx: discord.ApplicationContext):
 @bot.event
 async def on_ready():
     logger.info(f"Bot online: {bot.user}")
+    # Limpiar conexiones de voz colgadas de sesiones anteriores
+    for guild in bot.guilds:
+        if guild.voice_client:
+            await guild.voice_client.disconnect(force=True)
+            logger.info(f"Desconectado voice client colgado en: {guild.name}")
 
 
 bot.run(TOKEN)
