@@ -118,11 +118,13 @@ async def on_ready():
     logger.info(f"Conectado como {bot.user} (ID: {bot.user.id})")
     logger.info(f"Canal de voz: {VOICE_CHANNEL_ID}")
     logger.info(f"Audio: {AUDIO_FILE} | Intervalo: cada {INTERVAL_MINUTES} min")
-    try:
-        synced = await bot.tree.sync()
-        logger.info(f"Slash commands sincronizados: {len(synced)}")
-    except Exception as e:
-        logger.error(f"Error al sincronizar slash commands: {e}")
+    # Sync to each guild instantly (guild sync is immediate, global sync takes ~1h)
+    for guild in bot.guilds:
+        try:
+            synced = await bot.tree.sync(guild=guild)
+            logger.info(f"Slash commands sincronizados en '{guild.name}': {len(synced)}")
+        except Exception as e:
+            logger.error(f"Error al sincronizar en '{guild.name}': {e}")
     if not scheduled_play.is_running():
         scheduled_play.start()
 
