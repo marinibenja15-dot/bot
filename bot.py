@@ -103,6 +103,7 @@ async def scheduled_play():
 @scheduled_play.before_loop
 async def before_scheduled_play():
     await bot.wait_until_ready()
+    await asyncio.sleep(10)  # Wait for gateway session to fully stabilize
 
 
 # --- Slash command: /play ---
