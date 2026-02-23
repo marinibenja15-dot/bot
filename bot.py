@@ -17,7 +17,7 @@ INTERVAL_MINUTES = int(os.getenv("INTERVAL_MINUTES", "30"))
 if not TOKEN:
     raise ValueError("DISCORD_TOKEN no está configurado")
 
-# --- Client setup ---
+# --- Client ---
 intents = discord.Intents.default()
 intents.voice_states = True
 
@@ -27,8 +27,6 @@ voice_lock = asyncio.Lock()
 
 
 async def play_audio(interaction: discord.Interaction = None):
-    """Conecta al canal de voz, reproduce el audio y desconecta."""
-
     async def reply(msg):
         if interaction:
             try:
@@ -39,14 +37,14 @@ async def play_audio(interaction: discord.Interaction = None):
             logger.info(msg)
 
     if voice_lock.locked():
-        await reply("Ya hay una reproducción en curso, esperá un momento.")
+        await reply("Ya hay una reproducción en curso.")
         return
 
     async with voice_lock:
         channel = client.get_channel(VOICE_CHANNEL_ID)
 
         if not isinstance(channel, discord.VoiceChannel):
-            await reply(f"Canal de voz {VOICE_CHANNEL_ID} no encontrado.")
+            await reply(f"Canal {VOICE_CHANNEL_ID} no encontrado.")
             return
 
         if not os.path.isfile(AUDIO_FILE):
@@ -54,18 +52,22 @@ async def play_audio(interaction: discord.Interaction = None):
             return
 
         guild = channel.guild
-        voice_client = None
+        voice_client = guild.voice_client
 
         try:
-            # Limpiar cualquier conexión vieja/colgada
-            existing = guild.voice_client
-            if existing is not None:
-                await existing.disconnect(force=True)
-                await asyncio.sleep(1)
+            if voice_client is None:
+                voice_client = await channel.connect()
+            elif not voice_client.is_connected():
+                # Stale client: esperar a que Discord lo limpie antes de reconectar
+                await voice_client.disconnect(force=True)
+                await asyncio.sleep(3)
+                voice_client = await channel.connect()
+            elif voice_client.channel.id != VOICE_CHANNEL_ID:
+                await voice_client.move_to(channel)
 
-            # Conectar al canal (sin auto-reconexión para evitar el 4006 por race condition)
-            voice_client = await channel.connect(timeout=30, reconnect=False)
-            logger.info(f"Conectado a: {channel.name}")
+            if voice_client.is_playing():
+                voice_client.stop()
+                await asyncio.sleep(0.5)
 
             loop = asyncio.get_running_loop()
             future = loop.create_future()
@@ -79,14 +81,12 @@ async def play_audio(interaction: discord.Interaction = None):
             source = discord.FFmpegPCMAudio(AUDIO_FILE, options="-vn")
             voice_client.play(source, after=after_play)
 
-            # Pequeño delay para que FFmpeg arranque
             await asyncio.sleep(0.5)
             if not voice_client.is_playing():
                 raise RuntimeError("FFmpeg no pudo iniciar la reproducción.")
 
             await reply(f"Reproduciendo en **{channel.name}**...")
             logger.info(f"Reproduciendo '{AUDIO_FILE}'...")
-
             await future
             logger.info("Reproducción terminada.")
 
@@ -101,39 +101,33 @@ async def play_audio(interaction: discord.Interaction = None):
                 logger.info("Desconectado.")
 
 
-# --- Tarea programada ---
 @tasks.loop(minutes=INTERVAL_MINUTES)
 async def scheduled_play():
-    logger.info(f"Tarea programada — reproduciendo cada {INTERVAL_MINUTES} min")
+    logger.info("Ejecutando tarea programada...")
     await play_audio()
 
 
 @scheduled_play.before_loop
 async def before_scheduled_play():
     await client.wait_until_ready()
-    await asyncio.sleep(15)  # Esperar que la sesión del gateway esté estable
+    await asyncio.sleep(15)
 
 
-# --- Slash command /play ---
 @tree.command(name="play", description="Reproduce el audio en el canal de voz ahora")
 async def play_command(interaction: discord.Interaction):
     await interaction.response.defer()
     await play_audio(interaction)
 
 
-# --- On ready ---
 @client.event
 async def on_ready():
     logger.info(f"Bot online: {client.user} (ID: {client.user.id})")
-    logger.info(f"Canal: {VOICE_CHANNEL_ID} | Audio: {AUDIO_FILE} | Intervalo: {INTERVAL_MINUTES} min")
-
     for guild in client.guilds:
         try:
             await tree.sync(guild=discord.Object(id=guild.id))
             logger.info(f"Slash commands sincronizados en: {guild.name}")
         except Exception as e:
-            logger.error(f"Error sync en {guild.name}: {e}")
-
+            logger.error(f"Error sync {guild.name}: {e}")
     if not scheduled_play.is_running():
         scheduled_play.start()
 
