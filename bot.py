@@ -13,16 +13,19 @@ AUDIO_FILE = os.getenv("AUDIO_FILE", "audio.mp3")
 bot = discord.Bot()
 
 
-@bot.slash_command(name="play", description="Reproduce el audio en el canal de voz")
-async def play_command(ctx: discord.ApplicationContext):
-    await ctx.defer()
-
+@bot.slash_command(name="play", description="Reproduce un audio en el canal de voz")
+async def play_command(ctx: discord.ApplicationContext, archivo: str):
     channel = bot.get_channel(VOICE_CHANNEL_ID)
     if not isinstance(channel, discord.VoiceChannel):
         await ctx.respond("Canal de voz no encontrado.")
         return
 
+    if not os.path.isfile(archivo):
+        await ctx.respond(f"Archivo `{archivo}` no encontrado.")
+        return
+
     voice_client = await channel.connect()
+    await ctx.respond(f"Reproduciendo `{archivo}` en **{channel.name}**...")
 
     try:
         loop = asyncio.get_running_loop()
@@ -34,13 +37,11 @@ async def play_command(ctx: discord.ApplicationContext):
             else:
                 loop.call_soon_threadsafe(future.set_result, None)
 
-        voice_client.play(discord.FFmpegPCMAudio(AUDIO_FILE, options="-vn"), after=after)
-        await ctx.respond(f"Reproduciendo en **{channel.name}**...")
+        voice_client.play(discord.FFmpegPCMAudio(archivo, options="-vn"), after=after)
         await future
 
     except Exception as e:
         logger.error(f"Error: {e}")
-        await ctx.respond(f"Error: {e}")
 
     finally:
         if voice_client.is_connected():
